@@ -115,6 +115,34 @@ jobs:
             ls "$fw/"
           done
 
+      - name: Trim xcframeworks to arm64 device only
+        run: |
+          python3 - <<'PYEOF'
+          import plistlib, shutil
+          from pathlib import Path
+          ios = Path("ios")
+          for fw in ios.glob("*.xcframework"):
+              plist_path = fw / "Info.plist"
+              with open(plist_path, "rb") as f:
+                  plist = plistlib.load(f)
+              kept = []
+              for lib in plist["AvailableLibraries"]:
+                  if lib["LibraryIdentifier"] == "ios-arm64":
+                      kept.append(lib)
+                  else:
+                      slice_dir = fw / lib["LibraryIdentifier"]
+                      if slice_dir.exists():
+                          shutil.rmtree(slice_dir)
+                          print(f"  {fw.name}: removed {lib['LibraryIdentifier']}")
+              plist["AvailableLibraries"] = kept
+              with open(plist_path, "wb") as f:
+                  plistlib.dump(plist, f)
+              print(f"  {fw.name}: kept ios-arm64 only")
+          PYEOF
+          echo "=== Final sizes ==="
+          du -sh ios/*.xcframework
+          du -sh ios/
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
