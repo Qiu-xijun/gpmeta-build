@@ -6,6 +6,11 @@
 
 @implementation GPMetaModule
 
++ (void)load {
+    // Force the linker to keep this object file so the
+    // __DATA,__DCUniMethod section is included in the final app.
+}
+
 UNI_EXPORT_METHOD(@selector(initMeta))
 UNI_EXPORT_METHOD(@selector(testPlugin:))
 UNI_EXPORT_METHOD(@selector(fetchDeferredLink:))
