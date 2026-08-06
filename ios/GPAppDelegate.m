@@ -16,7 +16,7 @@
      didFinishLaunchingWithOptions:nil];
 
     // 启动时激活 Meta 追踪
-    [FBSDKAppEvents activateApp];
+    [[FBSDKAppEvents shared] activateApp];
 }
 
 - (BOOL)application:(UIApplication *)app

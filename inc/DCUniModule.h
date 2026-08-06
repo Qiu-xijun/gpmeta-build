@@ -20,7 +20,7 @@ typedef void (^UniModuleKeepAliveCallback)(id result, BOOL keepAlive);
 #define UNI_EXPORT_METHOD_INNER(method, counter) \
     __attribute__((used)) \
     __attribute__((section("__DATA,__DCUniMethod"))) \
-    static void *UNI_EXPORT_METHOD_##counter = (void *)method;
+    static SEL UNI_EXPORT_METHOD_##counter = method;
 
 #define UNI_EXPORT_METHOD(method) \
     UNI_EXPORT_METHOD_INNER(method, __COUNTER__)
@@ -28,7 +28,7 @@ typedef void (^UniModuleKeepAliveCallback)(id result, BOOL keepAlive);
 #define UNI_EXPORT_METHOD_SYNC_INNER(method, counter) \
     __attribute__((used)) \
     __attribute__((section("__DATA,__DCUniMethodSync"))) \
-    static void *UNI_EXPORT_METHOD_SYNC_##counter = (void *)method;
+    static SEL UNI_EXPORT_METHOD_SYNC_##counter = method;
 
 #define UNI_EXPORT_METHOD_SYNC(method) \
     UNI_EXPORT_METHOD_SYNC_INNER(method, __COUNTER__)

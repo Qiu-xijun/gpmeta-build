@@ -32,7 +32,7 @@ UNI_EXPORT_METHOD(@selector(requestTracking:))
                   application:nil
 didFinishLaunchingWithOptions:nil
     ];
-    [FBSDKAppEvents activateApp];
+    [[FBSDKAppEvents shared] activateApp];
 }
 
 - (void)testPlugin:(UniModuleKeepAliveCallback)callback
@@ -43,7 +43,7 @@ didFinishLaunchingWithOptions:nil
 - (void)fetchDeferredLink:(UniModuleKeepAliveCallback)callback
 {
     [[FBSDKApplicationDelegate sharedInstance] application:nil didFinishLaunchingWithOptions:nil];
-    [FBSDKAppEvents activateApp];
+    [[FBSDKAppEvents shared] activateApp];
 
     [FBSDKAppLinkUtility fetchDeferredAppLink:^(NSURL *url, NSError *error){
         if(error) {
