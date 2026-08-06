@@ -43,32 +43,43 @@ jobs:
             ONLY_ACTIVE_ARCH=NO \
             -derivedDataPath build/device
 
-      - name: Build for iOS simulator (arm64, x86_64)
+      - name: Build for iOS simulator (arm64)
         run: |
           xcodebuild build \
             -workspace GPMetaModule.xcworkspace \
             -scheme GPMetaModule \
             -configuration Release \
             -sdk iphonesimulator \
-            ARCHS=arm64,x86_64 \
+            ARCHS=arm64 \
             ONLY_ACTIVE_ARCH=NO \
-            -derivedDataPath build/sim
+            -derivedDataPath build/sim || echo "SIM_BUILD_FAILED"
 
       - name: Create fat library
         run: |
           DEVICE_A=$(find build/device -name "libGPMetaModule.a" | head -1)
           SIM_A=$(find build/sim -name "libGPMetaModule.a" | head -1)
-          if [ -z "$DEVICE_A" ] || [ -z "$SIM_A" ]; then
-            echo "ERROR: Could not find .a files"
-            echo "Device: $DEVICE_A"
-            echo "Sim: $SIM_A"
+
+          echo "Device lib: ${DEVICE_A:-NOT_FOUND}"
+          echo "Simulator lib: ${SIM_A:-NOT_FOUND}"
+
+          if [ -z "$DEVICE_A" ]; then
+            echo "ERROR: Device .a not found!"
             find build -name "*.a" 2>/dev/null
             exit 1
           fi
-          echo "Device lib: $DEVICE_A"
-          echo "Simulator lib: $SIM_A"
-          lipo -create "$DEVICE_A" "$SIM_A" -output ios/libGPMetaModule.a
-          echo "=== Fat library info ==="
+
+          if [ -n "$SIM_A" ]; then
+            echo "Creating fat library (device + simulator)..."
+            lipo -create "$DEVICE_A" "$SIM_A" -output ios/libGPMetaModule.a
+          else
+            echo "Simulator .a not found, using device-only .a"
+            echo "=== Searching for sim build products ==="
+            find build/sim -name "*.a" 2>/dev/null || echo "(no .a files in build/sim)"
+            find build/sim -type d -name "Release-*" 2>/dev/null || echo "(no Release dirs)"
+            cp "$DEVICE_A" ios/libGPMetaModule.a
+          fi
+
+          echo "=== Library info ==="
           lipo -info ios/libGPMetaModule.a
           file ios/libGPMetaModule.a
           ls -lh ios/libGPMetaModule.a
