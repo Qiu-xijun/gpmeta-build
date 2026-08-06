@@ -6,6 +6,13 @@
 
 @implementation GPMetaModule
 
++ (void)load {
+    // Fill __DCUniMethod SEL slots from the string names stored by
+    // UNI_EXPORT_METHOD.  This runs before the uni-app runtime scans
+    // the section, ensuring methods are registered.
+    DCUniRegisterAllMethods();
+}
+
 UNI_EXPORT_METHOD(@selector(initMeta))
 UNI_EXPORT_METHOD(@selector(testPlugin:))
 UNI_EXPORT_METHOD(@selector(fetchDeferredLink:))

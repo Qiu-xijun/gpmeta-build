@@ -18,27 +18,13 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Select Xcode 15.2
-        run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
-
       - name: Verify Xcode version
         run: xcodebuild -version
-
-      - name: Test @selector() static initializer
-        run: |
-          cat > /tmp/seltest.m << 'EOF'
-          #import <Foundation/Foundation.h>
-          __attribute__((section("__DATA,__test"))) static SEL test_sel = @selector(foo);
-          int main() { return 0; }
-          EOF
-          clang -x objective-c -arch arm64 -isysroot $(xcrun --sdk iphoneos --show-sdk-path) /tmp/seltest.m -o /tmp/seltest 2>&1 || echo "SELECTOR_INIT_FAILED"
-          echo "=== clang version ==="
-          clang --version
 
       - name: Install xcodegen
         run: brew install xcodegen
@@ -115,6 +101,9 @@ jobs:
           echo "=== __DCUniMethod section content ==="
           otool -s __DATA __DCUniMethod ios/libGPMetaModule.a || echo "otool not available"
           otool -s __DATA __DCUniMethodSync ios/libGPMetaModule.a || echo "otool not available"
+          echo "=== __DCUniReg section content (pointer-based registration) ==="
+          otool -s __DATA __DCUniReg ios/libGPMetaModule.a || echo "otool not available"
+          otool -s __DATA __DCUniRegSync ios/libGPMetaModule.a || echo "otool not available"
 
       - name: Copy FBSDK frameworks to ios/
         run: |
