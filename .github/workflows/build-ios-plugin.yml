@@ -18,10 +18,16 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-14
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Select Xcode 15.4
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+
+      - name: Verify Xcode version
+        run: xcodebuild -version
 
       - name: Install xcodegen
         run: brew install xcodegen
@@ -85,6 +91,9 @@ jobs:
           ls -lh ios/libGPMetaModule.a
           echo "=== Exported symbols ==="
           nm ios/libGPMetaModule.a | grep -i "GPMetaModule\|GPAppDelegate" | head -20
+          echo "=== __DCUniMethod section content ==="
+          otool -s __DATA __DCUniMethod ios/libGPMetaModule.a || echo "otool not available"
+          otool -s __DATA __DCUniMethodSync ios/libGPMetaModule.a || echo "otool not available"
 
       - name: Copy FBSDK frameworks to ios/
         run: |
