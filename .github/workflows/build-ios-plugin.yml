@@ -43,14 +43,14 @@ jobs:
             ONLY_ACTIVE_ARCH=NO \
             -derivedDataPath build/device
 
-      - name: Build for iOS simulator (arm64)
+      - name: Build for iOS simulator (x86_64)
         run: |
           xcodebuild build \
             -workspace GPMetaModule.xcworkspace \
             -scheme GPMetaModule \
             -configuration Release \
             -sdk iphonesimulator \
-            ARCHS=arm64 \
+            ARCHS=x86_64 \
             ONLY_ACTIVE_ARCH=NO \
             -derivedDataPath build/sim || echo "SIM_BUILD_FAILED"
 
@@ -69,13 +69,13 @@ jobs:
           fi
 
           if [ -n "$SIM_A" ]; then
-            echo "Creating fat library (device + simulator)..."
-            lipo -create "$DEVICE_A" "$SIM_A" -output ios/libGPMetaModule.a
+            echo "Creating fat library (arm64 + x86_64)..."
+            lipo -create "$DEVICE_A" "$SIM_A" -output ios/libGPMetaModule.a || {
+              echo "lipo failed, using device-only .a"
+              cp "$DEVICE_A" ios/libGPMetaModule.a
+            }
           else
             echo "Simulator .a not found, using device-only .a"
-            echo "=== Searching for sim build products ==="
-            find build/sim -name "*.a" 2>/dev/null || echo "(no .a files in build/sim)"
-            find build/sim -type d -name "Release-*" 2>/dev/null || echo "(no Release dirs)"
             cp "$DEVICE_A" ios/libGPMetaModule.a
           fi
 
