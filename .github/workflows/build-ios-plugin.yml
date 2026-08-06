@@ -18,10 +18,15 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-14
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Select Xcode 15.4
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '15.4'
 
       - name: Verify Xcode version
         run: xcodebuild -version
@@ -101,10 +106,10 @@ jobs:
           echo "=== __DCUniMethod section content ==="
           otool -s __DATA __DCUniMethod ios/libGPMetaModule.a || echo "otool not available"
           otool -s __DATA __DCUniMethodSync ios/libGPMetaModule.a || echo "otool not available"
-          echo "=== Constructor registration functions ==="
-          nm ios/libGPMetaModule.a | grep -E "_uni_reg_[0-9]+" | head -20 || echo "no constructor symbols found"
-          echo "=== __mod_init_func section (constructor pointers) ==="
-          otool -s __DATA __mod_init_func ios/libGPMetaModule.a || echo "otool not available"
+          echo "=== SEL symbols (should be non-zero) ==="
+          nm ios/libGPMetaModule.a | grep "_uni_sel_" | head -20 || echo "no SEL symbols found"
+          echo "=== Verify NO __mod_init_func (no constructors needed) ==="
+          otool -s __DATA __mod_init_func ios/libGPMetaModule.a || echo "no __mod_init_func (correct!)"
 
       - name: Copy FBSDK frameworks to ios/
         run: |

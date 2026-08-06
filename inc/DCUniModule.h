@@ -2,13 +2,16 @@
 //  DCUniModule.h
 //  uni-app iOS Plugin SDK Header
 //
-//  STUB VERSION - Replace with real header from uni-app iOS SDK
-//  Download: https://nativesupport.dcloud.net.cn/AppDocs/download/ios.html
+//  Original DCloud macro: static SEL = @selector() stored directly
+//  in __DATA,__DCUniMethod section at compile time.
+//
+//  Requires Xcode 15.x (Clang 17) — Xcode 16+ rejects @selector()
+//  as a static initializer.
+//
+//  Download official SDK: https://nativesupport.dcloud.net.cn/AppDocs/download/ios.html
 //
 
 #import <Foundation/Foundation.h>
-#import <objc/runtime.h>
-#import <string.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -23,70 +26,24 @@ typedef void (^UniModuleKeepAliveCallback)(id result, BOOL keepAlive);
 #define UNI_CAT(a, b) UNI_CAT_INNER(a, b)
 
 // ---------------------------------------------------------------------------
-// Method Registration Strategy
+// Original DCloud UNI_EXPORT_METHOD macro
 //
-// Xcode 15.3+ / 16 (Clang 18) rejects:  static SEL x = @selector(foo);
-// so we cannot store SEL values directly in __DATA,__DCUniMethod at compile
-// time.
+// Stores the SEL value DIRECTLY in __DATA,__DCUniMethod at compile time.
+// No runtime initialization needed — the SEL is baked into the binary.
+// The uni-app runtime scans __DATA,__DCUniMethod at launch to discover
+// registered method selectors.
 //
-// Instead we store a zero-filled SEL slot in __DATA,__DCUniMethod and use an
-// __attribute__((constructor)) function (runs before main()) to fill the slot
-// with sel_registerName().
-//
-// Each exported method gets its own constructor in the SAME object file as the
-// SEL slot, so as long as the object file is linked the constructor will run.
-//
-// IMPORTANT: For this to work from a static library, the plugin class must be
-// linked into the final executable. When using source files (placed in the
-// plugin ios/ directory) HBuilderX compiles them as part of the app, so the
-// class is always present and the constructors always run.
+// This is exactly how the official DCloud SDK works.
 // ---------------------------------------------------------------------------
 
-static inline SEL DCUniRegisterSel(const char *raw) {
-    if (!raw) return NULL;
-
-    const char *prefix = "@selector(";
-    size_t plen = strlen(prefix);
-
-    if (strncmp(raw, prefix, plen) == 0) {
-        const char *inner = raw + plen;
-        size_t len = strlen(inner);
-        if (len > 0 && inner[len - 1] == ')') {
-            char buf[256];
-            len--;
-            if (len >= sizeof(buf)) len = sizeof(buf) - 1;
-            memcpy(buf, inner, len);
-            buf[len] = '\0';
-            return sel_registerName(buf);
-        }
-    }
-    return sel_registerName(raw);
-}
-
-#define UNI_EXPORT_METHOD_INNER(method, counter) \
+#define UNI_EXPORT_METHOD(method) \
     __attribute__((used)) \
     __attribute__((section("__DATA,__DCUniMethod"))) \
-    static SEL UNI_CAT(_uni_sel_, counter); \
-    __attribute__((used)) \
-    __attribute__((constructor)) \
-    static void UNI_CAT(_uni_reg_, counter)(void) { \
-        UNI_CAT(_uni_sel_, counter) = DCUniRegisterSel(#method); \
-    }
-
-#define UNI_EXPORT_METHOD(method) \
-    UNI_EXPORT_METHOD_INNER(method, __COUNTER__)
-
-#define UNI_EXPORT_METHOD_SYNC_INNER(method, counter) \
-    __attribute__((used)) \
-    __attribute__((section("__DATA,__DCUniMethodSync"))) \
-    static SEL UNI_CAT(_uni_sel_sync_, counter); \
-    __attribute__((used)) \
-    __attribute__((constructor)) \
-    static void UNI_CAT(_uni_reg_sync_, counter)(void) { \
-        UNI_CAT(_uni_sel_sync_, counter) = DCUniRegisterSel(#method); \
-    }
+    static SEL UNI_CAT(_uni_sel_, __COUNTER__) = method
 
 #define UNI_EXPORT_METHOD_SYNC(method) \
-    UNI_EXPORT_METHOD_SYNC_INNER(method, __COUNTER__)
+    __attribute__((used)) \
+    __attribute__((section("__DATA,__DCUniMethodSync"))) \
+    static SEL UNI_CAT(_uni_sel_sync_, __COUNTER__) = method
 
 NS_ASSUME_NONNULL_END
