@@ -40,6 +40,15 @@ jobs:
       - name: Install CocoaPods
         run: pod install
 
+      - name: Fix project format for Xcode 15.4 compatibility
+        run: |
+          # xcodegen/CocoaPods generate objectVersion=77 (Xcode 16+ format)
+          # Xcode 15.4 needs objectVersion=56
+          find . -name "*.pbxproj" -exec sed -i '' 's/objectVersion = [0-9]*/objectVersion = 56/g' {} +
+          echo "=== Verifying project format ==="
+          grep "objectVersion" GPMetaModule.xcodeproj/project.pbxproj
+          grep "objectVersion" Pods/Pods.xcodeproj/project.pbxproj
+
       - name: Build for iOS device (arm64)
         run: |
           set -x
