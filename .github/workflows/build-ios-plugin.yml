@@ -18,15 +18,10 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-13
+    runs-on: macos-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Select Xcode 14.3.2
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: '14.3.2'
 
       - name: Verify Xcode version
         run: xcodebuild -version && clang --version
@@ -39,15 +34,6 @@ jobs:
 
       - name: Install CocoaPods
         run: pod install
-
-      - name: Fix project format for Xcode 14 compatibility
-        run: |
-          # xcodegen/CocoaPods generate objectVersion=77 (Xcode 16+ format)
-          # Xcode 14.3 needs objectVersion=55 or 56
-          find . -name "*.pbxproj" -exec sed -i '' 's/objectVersion = [0-9]*/objectVersion = 55/g' {} +
-          echo "=== Verifying project format ==="
-          grep "objectVersion" GPMetaModule.xcodeproj/project.pbxproj || echo "main project: not found"
-          grep "objectVersion" Pods/Pods.xcodeproj/project.pbxproj || echo "pods project: not found"
 
       - name: Build for iOS device (arm64)
         run: |
@@ -70,61 +56,34 @@ jobs:
             exit $EXIT_CODE
           fi
 
-      - name: Build for iOS simulator (x86_64)
-        run: |
-          xcodebuild build \
-            -workspace GPMetaModule.xcworkspace \
-            -scheme GPMetaModule \
-            -configuration Release \
-            -sdk iphonesimulator \
-            ARCHS=x86_64 \
-            ONLY_ACTIVE_ARCH=NO \
-            -derivedDataPath build/sim || echo "SIM_BUILD_FAILED"
-
-      - name: Create fat library
+      - name: Copy .a to ios/
         run: |
           DEVICE_A=$(find build/device -name "libGPMetaModule.a" | head -1)
-          SIM_A=$(find build/sim -name "libGPMetaModule.a" | head -1)
-
           echo "Device lib: ${DEVICE_A:-NOT_FOUND}"
-          echo "Simulator lib: ${SIM_A:-NOT_FOUND}"
-
           if [ -z "$DEVICE_A" ]; then
             echo "ERROR: Device .a not found!"
             find build -name "*.a" 2>/dev/null
             exit 1
           fi
-
-          if [ -n "$SIM_A" ]; then
-            echo "Creating fat library (arm64 + x86_64)..."
-            lipo -create "$DEVICE_A" "$SIM_A" -output ios/libGPMetaModule.a || {
-              echo "lipo failed, using device-only .a"
-              cp "$DEVICE_A" ios/libGPMetaModule.a
-            }
-          else
-            echo "Simulator .a not found, using device-only .a"
-            cp "$DEVICE_A" ios/libGPMetaModule.a
-          fi
-
+          cp "$DEVICE_A" ios/libGPMetaModule.a
           echo "=== Library info ==="
           lipo -info ios/libGPMetaModule.a
           file ios/libGPMetaModule.a
           ls -lh ios/libGPMetaModule.a
-          echo "=== Exported symbols ==="
-          nm ios/libGPMetaModule.a | grep -i "GPMetaModule\|GPAppDelegate" | head -20
-          echo "=== __DCUniMethod section content ==="
+          echo "=== Exported ObjC class symbols ==="
+          nm ios/libGPMetaModule.a | grep -i "GPMetaModule" | head -20
+          echo "=== __DCUniMethod section ==="
           otool -s __DATA __DCUniMethod ios/libGPMetaModule.a || echo "otool not available"
-          otool -s __DATA __DCUniMethodSync ios/libGPMetaModule.a || echo "otool not available"
-          echo "=== SEL symbols (should be non-zero) ==="
-          nm ios/libGPMetaModule.a | grep "_uni_sel_" | head -20 || echo "no SEL symbols found"
-          echo "=== Verify NO __mod_init_func (no constructors needed) ==="
-          otool -s __DATA __mod_init_func ios/libGPMetaModule.a || echo "no __mod_init_func (correct!)"
+          echo "=== SEL variable symbols ==="
+          nm ios/libGPMetaModule.a | grep "_gp_sel_" | head -20
+          echo "=== +load method present? ==="
+          nm ios/libGPMetaModule.a | grep -i "load" | head -10
+          echo "=== NOTE: SEL values are NULL in .a file (filled at runtime by +load) ==="
 
       - name: Copy FBSDK frameworks to ios/
         run: |
           echo "=== Searching for xcframeworks in Pods ==="
           find Pods -name "*.xcframework" -maxdepth 5 2>/dev/null
-
           echo ""
           echo "=== Copying FBSDK frameworks ==="
           for fw in FBSDKCoreKit FBSDKCoreKit_Basics FBAEMKit; do
@@ -137,17 +96,9 @@ jobs:
               echo "WARNING: ${fw}.xcframework not found!"
             fi
           done
-
           echo ""
           echo "=== All xcframeworks in ios/ ==="
           ls -d ios/*.xcframework 2>/dev/null || echo "No xcframeworks found"
-
-          echo ""
-          echo "=== Verifying slices ==="
-          for fw in ios/*.xcframework; do
-            echo "--- $(basename $fw) ---"
-            ls "$fw/"
-          done
 
       - name: Trim xcframeworks to arm64 device only
         run: |
@@ -192,5 +143,5 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -f ios/libGPMetaModule.a
           find ios -maxdepth 1 -name "*.xcframework" -exec git add {} \;
-          git diff --staged --quiet || git commit -m "build: update libGPMetaModule.a + FBSDK frameworks [skip ci]"
+          git diff --staged --quiet || git commit -m "build: update libGPMetaModule.a + FBSDK frameworks (+load approach) [skip ci]"
           git push || echo "Nothing to push"

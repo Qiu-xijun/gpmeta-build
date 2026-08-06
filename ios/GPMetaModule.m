@@ -4,12 +4,41 @@
 #import <AppTrackingTransparency/AppTrackingTransparency.h>
 #import <AdSupport/AdSupport.h>
 
+/*
+ * uni-app Method Registration via +load
+ *
+ * Problem: Xcode 15+ (Clang 16) rejects `static SEL x = @selector(...)`
+ *          as "initializer element is not a compile-time constant".
+ *
+ * Solution: Initialize SEL variables to NULL in __DATA,__DCUniMethod,
+ *           then fill them in +load (runs before uni-app scans the section).
+ *           Works with ALL Xcode versions.
+ */
+__attribute__((used))
+__attribute__((section("__DATA,__DCUniMethod")))
+static SEL _gp_sel_initMeta = NULL;
+
+__attribute__((used))
+__attribute__((section("__DATA,__DCUniMethod")))
+static SEL _gp_sel_testPlugin = NULL;
+
+__attribute__((used))
+__attribute__((section("__DATA,__DCUniMethod")))
+static SEL _gp_sel_fetchDeferredLink = NULL;
+
+__attribute__((used))
+__attribute__((section("__DATA,__DCUniMethod")))
+static SEL _gp_sel_requestTracking = NULL;
+
 @implementation GPMetaModule
 
-UNI_EXPORT_METHOD(@selector(initMeta))
-UNI_EXPORT_METHOD(@selector(testPlugin:))
-UNI_EXPORT_METHOD(@selector(fetchDeferredLink:))
-UNI_EXPORT_METHOD(@selector(requestTracking:))
++ (void)load
+{
+    _gp_sel_initMeta         = @selector(initMeta);
+    _gp_sel_testPlugin       = @selector(testPlugin:);
+    _gp_sel_fetchDeferredLink = @selector(fetchDeferredLink:);
+    _gp_sel_requestTracking  = @selector(requestTracking:);
+}
 
 - (void)requestTracking:(UniModuleKeepAliveCallback)callback
 {
