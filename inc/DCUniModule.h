@@ -21,18 +21,33 @@ typedef void (^UniModuleKeepAliveCallback)(id result, BOOL keepAlive);
 #define UNI_CAT_INNER(a, b) a##b
 #define UNI_CAT(a, b) UNI_CAT_INNER(a, b)
 
-// Store the selector in the registration section.  We avoid the
-// SEL->void* pointer cast that Xcode 26 rejects by casting to an
-// integer of the same size (uintptr_t).  The uni-app runtime reads
-// this section as pointer-sized values and casts back to SEL.
-#define UNI_EXPORT_METHOD(method) \
+// Use a constructor to initialise the section variable at runtime.
+// Xcode 26 rejects casting @selector() to void* in a static initialiser,
+// so we keep the variable in __DATA,__DCUniMethod and assign the SEL
+// from a constructor with an early priority to ensure it runs before
+// the uni-app runtime scans the section.
+#define UNI_EXPORT_METHOD_INNER(method, counter) \
     __attribute__((used)) \
     __attribute__((section("__DATA,__DCUniMethod"))) \
-    static uintptr_t UNI_CAT(UNI_EXPORT_METHOD_, __COUNTER__) = (uintptr_t)(method)
+    static SEL UNI_CAT(UNI_EXPORT_METHOD_, counter); \
+    __attribute__((constructor(101))) \
+    static void UNI_CAT(UNI_INIT_, counter)(void) { \
+        UNI_CAT(UNI_EXPORT_METHOD_, counter) = method; \
+    }
 
-#define UNI_EXPORT_METHOD_SYNC(method) \
+#define UNI_EXPORT_METHOD(method) \
+    UNI_EXPORT_METHOD_INNER(method, __COUNTER__)
+
+#define UNI_EXPORT_METHOD_SYNC_INNER(method, counter) \
     __attribute__((used)) \
     __attribute__((section("__DATA,__DCUniMethodSync"))) \
-    static uintptr_t UNI_CAT(UNI_EXPORT_METHOD_SYNC_, __COUNTER__) = (uintptr_t)(method)
+    static SEL UNI_CAT(UNI_EXPORT_METHOD_SYNC_, counter); \
+    __attribute__((constructor(101))) \
+    static void UNI_CAT(UNI_INIT_SYNC_, counter)(void) { \
+        UNI_CAT(UNI_EXPORT_METHOD_SYNC_, counter) = method; \
+    }
+
+#define UNI_EXPORT_METHOD_SYNC(method) \
+    UNI_EXPORT_METHOD_SYNC_INNER(method, __COUNTER__)
 
 NS_ASSUME_NONNULL_END
