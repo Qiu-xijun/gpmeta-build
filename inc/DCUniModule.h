@@ -21,19 +21,18 @@ typedef void (^UniModuleKeepAliveCallback)(id result, BOOL keepAlive);
 #define UNI_CAT_INNER(a, b) a##b
 #define UNI_CAT(a, b) UNI_CAT_INNER(a, b)
 
-// Store the selector directly in the registration section.
-// (Constructor-based registration does not reliably run before the
-// uni-app runtime scans __DATA,__DCUniMethod, so we use a static
-// initializer with the SEL type to avoid the SEL->void* cast that
-// newer Xcode rejects.)
+// Store the selector in the registration section.  We avoid the
+// SEL->void* pointer cast that Xcode 26 rejects by casting to an
+// integer of the same size (uintptr_t).  The uni-app runtime reads
+// this section as pointer-sized values and casts back to SEL.
 #define UNI_EXPORT_METHOD(method) \
     __attribute__((used)) \
     __attribute__((section("__DATA,__DCUniMethod"))) \
-    static SEL UNI_CAT(UNI_EXPORT_METHOD_, __COUNTER__) = method
+    static uintptr_t UNI_CAT(UNI_EXPORT_METHOD_, __COUNTER__) = (uintptr_t)(method)
 
 #define UNI_EXPORT_METHOD_SYNC(method) \
     __attribute__((used)) \
     __attribute__((section("__DATA,__DCUniMethodSync"))) \
-    static SEL UNI_CAT(UNI_EXPORT_METHOD_SYNC_, __COUNTER__) = method
+    static uintptr_t UNI_CAT(UNI_EXPORT_METHOD_SYNC_, __COUNTER__) = (uintptr_t)(method)
 
 NS_ASSUME_NONNULL_END
