@@ -5,6 +5,6 @@ build/
 Pods/
 DerivedData/
 
-# Build artifacts
+# Build artifacts (but keep the output .a)
 *.a
-!inc/**/*.h
+!ios/libGPMetaModule.a
