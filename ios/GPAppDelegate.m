@@ -31,10 +31,13 @@
 - (BOOL)application:(UIApplication *)application
 continueUserActivity:(NSUserActivity *)userActivity
   restorationHandler:(void (^)(NSArray<id<UIUserActivityRestoring>> * _Nullable))restorationHandler {
-    return [[FBSDKApplicationDelegate sharedInstance]
-            application:application
-            continueUserActivity:userActivity
-            restorationHandler:restorationHandler];
+    id delegate = [FBSDKApplicationDelegate sharedInstance];
+    if ([delegate respondsToSelector:@selector(application:continueUserActivity:restorationHandler:)]) {
+        return [delegate application:application
+                  continueUserActivity:userActivity
+                    restorationHandler:restorationHandler];
+    }
+    return NO;
 }
 
 
