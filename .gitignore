@@ -1,0 +1,10 @@
+# Xcode
+build/
+*.xcworkspace
+*.xcodeproj
+Pods/
+DerivedData/
+
+# Build artifacts
+*.a
+!inc/**/*.h

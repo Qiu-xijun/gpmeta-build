@@ -1,0 +1,91 @@
+name: Build iOS Native Plugin (GPMetaModule)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'ios/**'
+      - 'inc/**'
+      - 'project.yml'
+      - 'Podfile'
+      - '.github/workflows/build-ios-plugin.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Install CocoaPods
+        run: pod install
+
+      - name: Build for iOS device (arm64)
+        run: |
+          xcodebuild build \
+            -workspace GPMetaModule.xcworkspace \
+            -scheme GPMetaModule \
+            -configuration Release \
+            -sdk iphoneos \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=NO \
+            -derivedDataPath build/device
+
+      - name: Build for iOS simulator (arm64, x86_64)
+        run: |
+          xcodebuild build \
+            -workspace GPMetaModule.xcworkspace \
+            -scheme GPMetaModule \
+            -configuration Release \
+            -sdk iphonesimulator \
+            ARCHS=arm64,x86_64 \
+            ONLY_ACTIVE_ARCH=NO \
+            -derivedDataPath build/sim
+
+      - name: Create fat library
+        run: |
+          DEVICE_A=$(find build/device -name "libGPMetaModule.a" | head -1)
+          SIM_A=$(find build/sim -name "libGPMetaModule.a" | head -1)
+          if [ -z "$DEVICE_A" ] || [ -z "$SIM_A" ]; then
+            echo "ERROR: Could not find .a files"
+            echo "Device: $DEVICE_A"
+            echo "Sim: $SIM_A"
+            find build -name "*.a" 2>/dev/null
+            exit 1
+          fi
+          echo "Device lib: $DEVICE_A"
+          echo "Simulator lib: $SIM_A"
+          lipo -create "$DEVICE_A" "$SIM_A" -output ios/libGPMetaModule.a
+          echo "=== Fat library info ==="
+          lipo -info ios/libGPMetaModule.a
+          file ios/libGPMetaModule.a
+          ls -lh ios/libGPMetaModule.a
+          echo "=== Exported symbols ==="
+          nm ios/libGPMetaModule.a | grep -i "GPMetaModule\|GPAppDelegate" | head -20
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libGPMetaModule-a
+          path: ios/libGPMetaModule.a
+          retention-days: 90
+
+      - name: Commit back to repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ios/libGPMetaModule.a
+          git diff --staged --quiet || git commit -m "build: update libGPMetaModule.a [skip ci]"
+          git push || echo "Nothing to push"

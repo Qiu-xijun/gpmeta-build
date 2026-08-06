@@ -1,0 +1,26 @@
+name: GPMetaModule
+options:
+  bundleIdPrefix: com.goldpay
+  deploymentTarget:
+    ios: "12.0"
+  createIntermediateGroups: true
+
+targets:
+  GPMetaModule:
+    type: library.static
+    platform: iOS
+    sources:
+      - path: ios
+        excludes:
+          - "Podfile"
+          - "*.a"
+    settings:
+      base:
+        PRODUCT_NAME: GPMetaModule
+        HEADER_SEARCH_PATHS:
+          - "$(SRCROOT)/inc"
+          - "$(SRCROOT)/ios"
+        OTHER_LDFLAGS: ""
+        DEFINES_MODULE: YES
+        GCC_OPTIMIZATION_LEVEL: s
+        SWIFT_OPTIMIZATION_LEVEL: "-Onone"
