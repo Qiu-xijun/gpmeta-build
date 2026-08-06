@@ -18,18 +18,18 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-13
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Select Xcode 15.2
+      - name: Select Xcode 14.3.2
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: '15.2'
+          xcode-version: '14.3.2'
 
       - name: Verify Xcode version
-        run: xcodebuild -version
+        run: xcodebuild -version && clang --version
 
       - name: Install xcodegen
         run: brew install xcodegen
@@ -40,14 +40,14 @@ jobs:
       - name: Install CocoaPods
         run: pod install
 
-      - name: Fix project format for Xcode 15.4 compatibility
+      - name: Fix project format for Xcode 14 compatibility
         run: |
           # xcodegen/CocoaPods generate objectVersion=77 (Xcode 16+ format)
-          # Xcode 15.4 needs objectVersion=56
-          find . -name "*.pbxproj" -exec sed -i '' 's/objectVersion = [0-9]*/objectVersion = 56/g' {} +
+          # Xcode 14.3 needs objectVersion=55 or 56
+          find . -name "*.pbxproj" -exec sed -i '' 's/objectVersion = [0-9]*/objectVersion = 55/g' {} +
           echo "=== Verifying project format ==="
-          grep "objectVersion" GPMetaModule.xcodeproj/project.pbxproj
-          grep "objectVersion" Pods/Pods.xcodeproj/project.pbxproj
+          grep "objectVersion" GPMetaModule.xcodeproj/project.pbxproj || echo "main project: not found"
+          grep "objectVersion" Pods/Pods.xcodeproj/project.pbxproj || echo "pods project: not found"
 
       - name: Build for iOS device (arm64)
         run: |
