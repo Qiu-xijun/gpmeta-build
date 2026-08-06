@@ -61,7 +61,7 @@ typedef struct {
     static UniMethodReg UNI_CAT(UNI_REG_, counter) = { \
         .sel_ptr = &UNI_CAT(UNI_SEL_, counter), \
         .name = #method \
-    }
+    };
 
 #define UNI_EXPORT_METHOD(method) \
     UNI_EXPORT_METHOD_INNER(method, __COUNTER__)
@@ -75,7 +75,7 @@ typedef struct {
     static UniMethodReg UNI_CAT(UNI_REG_SYNC_, counter) = { \
         .sel_ptr = &UNI_CAT(UNI_SEL_SYNC_, counter), \
         .name = #method \
-    }
+    };
 
 #define UNI_EXPORT_METHOD_SYNC(method) \
     UNI_EXPORT_METHOD_SYNC_INNER(method, __COUNTER__)
