@@ -101,9 +101,10 @@ jobs:
           echo "=== __DCUniMethod section content ==="
           otool -s __DATA __DCUniMethod ios/libGPMetaModule.a || echo "otool not available"
           otool -s __DATA __DCUniMethodSync ios/libGPMetaModule.a || echo "otool not available"
-          echo "=== __DCUniReg section content (pointer-based registration) ==="
-          otool -s __DATA __DCUniReg ios/libGPMetaModule.a || echo "otool not available"
-          otool -s __DATA __DCUniRegSync ios/libGPMetaModule.a || echo "otool not available"
+          echo "=== Constructor registration functions ==="
+          nm ios/libGPMetaModule.a | grep -E "_uni_reg_[0-9]+" | head -20 || echo "no constructor symbols found"
+          echo "=== __mod_init_func section (constructor pointers) ==="
+          otool -s __DATA __mod_init_func ios/libGPMetaModule.a || echo "otool not available"
 
       - name: Copy FBSDK frameworks to ios/
         run: |

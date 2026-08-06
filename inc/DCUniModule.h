@@ -8,8 +8,6 @@
 
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
-#import <mach-o/getsect.h>
-#import <mach-o/dyld.h>
 #import <string.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -31,61 +29,19 @@ typedef void (^UniModuleKeepAliveCallback)(id result, BOOL keepAlive);
 // so we cannot store SEL values directly in __DATA,__DCUniMethod at compile
 // time.
 //
-// Instead we store:
-//   1. A zero-filled SEL slot in __DATA,__DCUniMethod  (what the uni-app
-//      runtime reads — must be an array of SEL values)
-//   2. A registration record in __DATA,__DCUniReg that contains:
-//        - a pointer to the SEL slot above
-//        - the stringified selector name
+// Instead we store a zero-filled SEL slot in __DATA,__DCUniMethod and use an
+// __attribute__((constructor)) function (runs before main()) to fill the slot
+// with sel_registerName().
 //
-// In +load (which runs before the uni-app runtime scans the section) we call
-// DCUniRegisterAllMethods() which iterates every loaded Mach-O image, finds
-// __DCUniReg sections, calls sel_registerName() on each name, and writes the
-// resulting SEL into the slot pointed to by sel_ptr.
+// Each exported method gets its own constructor in the SAME object file as the
+// SEL slot, so as long as the object file is linked the constructor will run.
 //
-// This pointer-based approach avoids any index-alignment issues that would
-// arise if the uni-app SDK also contributes entries to __DCUniMethod.
+// IMPORTANT: For this to work from a static library, the plugin class must be
+// linked into the final executable. When using source files (placed in the
+// plugin ios/ directory) HBuilderX compiles them as part of the app, so the
+// class is always present and the constructors always run.
 // ---------------------------------------------------------------------------
 
-typedef struct {
-    SEL *sel_ptr;        // pointer to the SEL slot in __DCUniMethod
-    const char *name;    // stringified selector name, e.g. "@selector(initMeta)"
-} UniMethodReg;
-
-#define UNI_EXPORT_METHOD_INNER(method, counter) \
-    __attribute__((used)) \
-    __attribute__((section("__DATA,__DCUniMethod"))) \
-    static SEL UNI_CAT(UNI_SEL_, counter); \
-    __attribute__((used)) \
-    __attribute__((section("__DATA,__DCUniReg"))) \
-    static UniMethodReg UNI_CAT(UNI_REG_, counter) = { \
-        .sel_ptr = &UNI_CAT(UNI_SEL_, counter), \
-        .name = #method \
-    };
-
-#define UNI_EXPORT_METHOD(method) \
-    UNI_EXPORT_METHOD_INNER(method, __COUNTER__)
-
-#define UNI_EXPORT_METHOD_SYNC_INNER(method, counter) \
-    __attribute__((used)) \
-    __attribute__((section("__DATA,__DCUniMethodSync"))) \
-    static SEL UNI_CAT(UNI_SEL_SYNC_, counter); \
-    __attribute__((used)) \
-    __attribute__((section("__DATA,__DCUniRegSync"))) \
-    static UniMethodReg UNI_CAT(UNI_REG_SYNC_, counter) = { \
-        .sel_ptr = &UNI_CAT(UNI_SEL_SYNC_, counter), \
-        .name = #method \
-    };
-
-#define UNI_EXPORT_METHOD_SYNC(method) \
-    UNI_EXPORT_METHOD_SYNC_INNER(method, __COUNTER__)
-
-// ---------------------------------------------------------------------------
-// Runtime helper — call once from +load
-// ---------------------------------------------------------------------------
-
-// Strip the "@selector(" prefix and ")" suffix from a stringified selector.
-// If the input doesn't have the wrapper, use it as-is.
 static inline SEL DCUniRegisterSel(const char *raw) {
     if (!raw) return NULL;
 
@@ -107,31 +63,30 @@ static inline SEL DCUniRegisterSel(const char *raw) {
     return sel_registerName(raw);
 }
 
-static inline void DCUniFillRegistrations(const struct mach_header *mh,
-                                          const char *reg_sect) {
-    unsigned long reg_sz = 0;
-    UniMethodReg *regs = (UniMethodReg *)getsectiondata(
-        mh, "__DATA", reg_sect, &reg_sz);
-    if (!regs || reg_sz == 0) return;
-
-    size_t n = reg_sz / sizeof(UniMethodReg);
-    for (size_t i = 0; i < n; i++) {
-        if (!regs[i].sel_ptr) continue;           // no target slot
-        if (*regs[i].sel_ptr != NULL) continue;    // already filled
-        if (!regs[i].name) continue;               // no name
-
-        *regs[i].sel_ptr = DCUniRegisterSel(regs[i].name);
+#define UNI_EXPORT_METHOD_INNER(method, counter) \
+    __attribute__((used)) \
+    __attribute__((section("__DATA,__DCUniMethod"))) \
+    static SEL UNI_CAT(_uni_sel_, counter); \
+    __attribute__((used)) \
+    __attribute__((constructor)) \
+    static void UNI_CAT(_uni_reg_, counter)(void) { \
+        UNI_CAT(_uni_sel_, counter) = DCUniRegisterSel(#method); \
     }
-}
 
-#define DCUniRegisterAllMethods() do { \
-    uint32_t _img_count = _dyld_image_count(); \
-    for (uint32_t _i = 0; _i < _img_count; _i++) { \
-        const struct mach_header *_mh = _dyld_get_image_header(_i); \
-        if (!_mh) continue; \
-        DCUniFillRegistrations(_mh, "__DCUniReg"); \
-        DCUniFillRegistrations(_mh, "__DCUniRegSync"); \
-    } \
-} while (0)
+#define UNI_EXPORT_METHOD(method) \
+    UNI_EXPORT_METHOD_INNER(method, __COUNTER__)
+
+#define UNI_EXPORT_METHOD_SYNC_INNER(method, counter) \
+    __attribute__((used)) \
+    __attribute__((section("__DATA,__DCUniMethodSync"))) \
+    static SEL UNI_CAT(_uni_sel_sync_, counter); \
+    __attribute__((used)) \
+    __attribute__((constructor)) \
+    static void UNI_CAT(_uni_reg_sync_, counter)(void) { \
+        UNI_CAT(_uni_sel_sync_, counter) = DCUniRegisterSel(#method); \
+    }
+
+#define UNI_EXPORT_METHOD_SYNC(method) \
+    UNI_EXPORT_METHOD_SYNC_INNER(method, __COUNTER__)
 
 NS_ASSUME_NONNULL_END
