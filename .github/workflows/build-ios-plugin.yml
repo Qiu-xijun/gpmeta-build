@@ -86,17 +86,49 @@ jobs:
           echo "=== Exported symbols ==="
           nm ios/libGPMetaModule.a | grep -i "GPMetaModule\|GPAppDelegate" | head -20
 
+      - name: Copy FBSDK frameworks to ios/
+        run: |
+          echo "=== Searching for xcframeworks in Pods ==="
+          find Pods -name "*.xcframework" -maxdepth 5 2>/dev/null
+
+          echo ""
+          echo "=== Copying FBSDK frameworks ==="
+          for fw in FBSDKCoreKit FBSDKCoreKit_Basics FBAEMKit; do
+            found=$(find Pods -name "${fw}.xcframework" -maxdepth 5 | head -1)
+            if [ -n "$found" ]; then
+              echo "Copying: $found -> ios/"
+              rm -rf "ios/${fw}.xcframework"
+              cp -r "$found" "ios/"
+            else
+              echo "WARNING: ${fw}.xcframework not found!"
+            fi
+          done
+
+          echo ""
+          echo "=== All xcframeworks in ios/ ==="
+          ls -d ios/*.xcframework 2>/dev/null || echo "No xcframeworks found"
+
+          echo ""
+          echo "=== Verifying slices ==="
+          for fw in ios/*.xcframework; do
+            echo "--- $(basename $fw) ---"
+            ls "$fw/"
+          done
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: libGPMetaModule-a
-          path: ios/libGPMetaModule.a
+          name: libGPMetaModule-bundle
+          path: |
+            ios/libGPMetaModule.a
+            ios/*.xcframework
           retention-days: 90
 
       - name: Commit back to repo
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add ios/libGPMetaModule.a
-          git diff --staged --quiet || git commit -m "build: update libGPMetaModule.a [skip ci]"
+          git add -f ios/libGPMetaModule.a
+          find ios -maxdepth 1 -name "*.xcframework" -exec git add {} \;
+          git diff --staged --quiet || git commit -m "build: update libGPMetaModule.a + FBSDK frameworks [skip ci]"
           git push || echo "Nothing to push"

@@ -5,6 +5,10 @@ build/
 Pods/
 DerivedData/
 
-# Build artifacts (but keep the output .a)
+# Build artifacts (but keep the output .a and frameworks)
 *.a
 !ios/libGPMetaModule.a
+
+# Don't ignore xcframeworks in ios/
+!ios/*.xcframework
+!ios/*.xcframework/**
