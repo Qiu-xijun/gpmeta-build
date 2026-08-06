@@ -23,11 +23,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Select Xcode 15.4
-        run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+      - name: Select Xcode 15.2
+        run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
 
       - name: Verify Xcode version
         run: xcodebuild -version
+
+      - name: Test @selector() static initializer
+        run: |
+          cat > /tmp/seltest.m << 'EOF'
+          #import <Foundation/Foundation.h>
+          __attribute__((section("__DATA,__test"))) static SEL test_sel = @selector(foo);
+          int main() { return 0; }
+          EOF
+          clang -x objective-c -arch arm64 -isysroot $(xcrun --sdk iphoneos --show-sdk-path) /tmp/seltest.m -o /tmp/seltest 2>&1 || echo "SELECTOR_INIT_FAILED"
+          echo "=== clang version ==="
+          clang --version
 
       - name: Install xcodegen
         run: brew install xcodegen
@@ -40,6 +51,7 @@ jobs:
 
       - name: Build for iOS device (arm64)
         run: |
+          set -x
           xcodebuild build \
             -workspace GPMetaModule.xcworkspace \
             -scheme GPMetaModule \
@@ -47,7 +59,16 @@ jobs:
             -sdk iphoneos \
             ARCHS=arm64 \
             ONLY_ACTIVE_ARCH=NO \
-            -derivedDataPath build/device
+            -derivedDataPath build/device 2>&1 | tee /tmp/build_device.log
+          EXIT_CODE=${PIPESTATUS[0]}
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "=== BUILD FAILED (exit code $EXIT_CODE) ==="
+            echo "=== Error lines ==="
+            grep -i "error:" /tmp/build_device.log | head -30
+            echo "=== Last 50 lines ==="
+            tail -50 /tmp/build_device.log
+            exit $EXIT_CODE
+          fi
 
       - name: Build for iOS simulator (x86_64)
         run: |
