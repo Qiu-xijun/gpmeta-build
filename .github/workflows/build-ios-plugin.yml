@@ -10,7 +10,6 @@ on:
       - 'ios/**'
       - 'inc/**'
       - 'project.yml'
-      - 'Podfile'
       - '.github/workflows/build-ios-plugin.yml'
 
 permissions:
@@ -77,7 +76,7 @@ jobs:
             exit $EXIT_CODE
           fi
 
-      - name: Copy .a and verify
+      - name: Create .framework and verify
         run: |
           DEVICE_A=$(find build/device -name "libGPMetaModule.a" | head -1)
           echo "Device lib: ${DEVICE_A:-NOT_FOUND}"
@@ -86,36 +85,70 @@ jobs:
             find build -name "*.a" 2>/dev/null
             exit 1
           fi
-          cp "$DEVICE_A" ios/libGPMetaModule.a
-          echo "=== Library info ==="
-          lipo -info ios/libGPMetaModule.a
-          file ios/libGPMetaModule.a
-          ls -lh ios/libGPMetaModule.a
+
+          # Create .framework directory structure
+          # HBuilderX links frameworks with -ObjC flag, which forces ALL .o files
+          # to be included (no selective loading issue that plagued .a approach)
+          rm -rf ios/GPMetaModule.framework
+          mkdir -p ios/GPMetaModule.framework/Headers
+          cp "$DEVICE_A" ios/GPMetaModule.framework/GPMetaModule
+          cp ios/GPMetaModule.h ios/GPMetaModule.framework/Headers/
+          cp inc/DCUniModule.h ios/GPMetaModule.framework/Headers/
+
+          # Create minimal Info.plist
+          cat > ios/GPMetaModule.framework/Info.plist << 'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleIdentifier</key>
+              <string>com.goldpay.GPMetaModule</string>
+              <key>CFBundleName</key>
+              <string>GPMetaModule</string>
+              <key>CFBundlePackageType</key>
+              <string>FMWK</string>
+              <key>CFBundleShortVersionString</key>
+              <string>1.0.2</string>
+          </dict>
+          </plist>
+          PLIST
+
+          FW_BIN=ios/GPMetaModule.framework/GPMetaModule
+
+          echo "=== Framework info ==="
+          lipo -info "$FW_BIN"
+          file "$FW_BIN"
+          ls -lh "$FW_BIN"
           echo ""
+          echo "=== Framework structure ==="
+          find ios/GPMetaModule.framework -type f
+          echo ""
+
           echo "=== GPMetaModule class symbols ==="
-          nm ios/libGPMetaModule.a | grep -i "GPMetaModule" | head -20
+          nm "$FW_BIN" | grep -i "GPMetaModule" | head -20
           echo ""
           echo "=== __DCUniMethod section (raw dump) ==="
-          otool -s __DATA __DCUniMethod ios/libGPMetaModule.a || echo "otool not available"
+          otool -s __DATA __DCUniMethod "$FW_BIN" || echo "otool not available"
           echo ""
           echo "=== SEL values in __DCUniMethod ==="
-          otool -X -s __DATA __DCUniMethod ios/libGPMetaModule.a 2>/dev/null | xxd | head -10 || echo "Could not dump"
+          otool -X -s __DATA __DCUniMethod "$FW_BIN" 2>/dev/null | xxd | head -10 || echo "Could not dump"
           echo ""
           echo "=== UNI_EXPORT_METHOD symbols (_uni_sel_) ==="
-          nm ios/libGPMetaModule.a | grep "_uni_sel_" | head -20
+          nm "$FW_BIN" | grep "_uni_sel_" | head -20
           echo ""
-          echo "=== GPAppDelegate __objc_classrefs (should reference GPMetaModule) ==="
-          nm -m ios/libGPMetaModule.a | grep -i "classref\|GPMetaModule" | head -20
+          echo "=== C++ static initializer present? ==="
+          nm "$FW_BIN" | grep "GLOBAL__sub_I" | head -5
           echo ""
           echo "=== Method selectors in binary ==="
-          strings ios/libGPMetaModule.a | grep -E "initMeta|testPlugin|fetchDeferredLink|requestTracking" | head -10
+          strings "$FW_BIN" | grep -E "initMeta|testPlugin|fetchDeferredLink|requestTracking" | head -10
           echo ""
           echo "=== Object files in archive ==="
-          ar t ios/libGPMetaModule.a 2>/dev/null || true
+          ar t "$FW_BIN" 2>/dev/null || true
           echo ""
-          echo "=== NOTE: SEL values are ZERO in .a (ObjC++ dynamic init) ==="
-          echo "=== They are filled at runtime by C++ static init (before main) ==="
-          echo "=== +load fills them even earlier (step 3, before C++ static init) ==="
+          echo "=== KEY: .framework will be linked with -ObjC by HBuilderX ==="
+          echo "=== This forces ALL .o files to be included (no selective loading) ==="
+          echo "=== __DATA,__DCUniMethod section will be present in final binary ==="
+          echo "=== C++ static init fills SELs before main() ==="
 
       - name: Copy FBSDK frameworks to ios/
         run: |
@@ -168,9 +201,9 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: libGPMetaModule-bundle
+          name: GPMetaModule-framework-bundle
           path: |
-            ios/libGPMetaModule.a
+            ios/GPMetaModule.framework
             ios/*.xcframework
           retention-days: 90
 
@@ -178,7 +211,10 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -f ios/libGPMetaModule.a
+          # Remove old .a if it exists
+          git rm -f ios/libGPMetaModule.a 2>/dev/null || true
+          # Add .framework
+          git add -f ios/GPMetaModule.framework
           find ios -maxdepth 1 -name "*.xcframework" -exec git add {} \;
-          git diff --staged --quiet || git commit -m "build: update libGPMetaModule.a (link-ref fix + ObjC++ .mm + load) [skip ci]"
+          git diff --staged --quiet || git commit -m "build: switch to .framework (fixes selective loading — HBuilderX uses -ObjC for frameworks) [skip ci]"
           git push || echo "Nothing to push"
