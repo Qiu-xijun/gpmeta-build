@@ -26,6 +26,23 @@ jobs:
       - name: Verify Xcode version
         run: xcodebuild -version && clang --version
 
+      - name: Verify source file extension
+        run: |
+          echo "=== Source files in ios/ ==="
+          ls -la ios/*.m ios/*.mm 2>/dev/null
+          echo ""
+          if [ -f "ios/GPMetaModule.mm" ]; then
+            echo "✓ GPMetaModule.mm exists (ObjC++ approach)"
+          else
+            echo "✗ ERROR: GPMetaModule.mm not found!"
+            exit 1
+          fi
+          if [ -f "ios/GPMetaModule.m" ]; then
+            echo "✗ WARNING: GPMetaModule.m still exists! This will cause compile errors on Xcode 15+"
+            echo "  Please delete it and use .mm instead."
+            exit 1
+          fi
+
       - name: Install xcodegen
         run: brew install xcodegen
 
@@ -74,11 +91,13 @@ jobs:
           nm ios/libGPMetaModule.a | grep -i "GPMetaModule" | head -20
           echo "=== __DCUniMethod section ==="
           otool -s __DATA __DCUniMethod ios/libGPMetaModule.a || echo "otool not available"
-          echo "=== SEL variable symbols ==="
-          nm ios/libGPMetaModule.a | grep "_gp_sel_" | head -20
-          echo "=== +load method present? ==="
-          nm ios/libGPMetaModule.a | grep -i "load" | head -10
-          echo "=== NOTE: SEL values are NULL in .a file (filled at runtime by +load) ==="
+          echo "=== UNI_EXPORT_METHOD symbols (_uni_sel_) ==="
+          nm ios/libGPMetaModule.a | grep "_uni_sel_" | head -20
+          echo "=== Method selectors in binary ==="
+          strings ios/libGPMetaModule.a | grep -E "initMeta|testPlugin|fetchDeferredLink|requestTracking" | head -10
+          echo "=== ObjC++ (.mm) compiled? ==="
+          nm ios/libGPMetaModule.a | grep -c "GPMetaModule" || echo "0 symbols"
+          echo "=== NOTE: SEL values should be NON-NULL (compile-time fixup via ObjC++) ==="
 
       - name: Copy FBSDK frameworks to ios/
         run: |
@@ -143,5 +162,5 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -f ios/libGPMetaModule.a
           find ios -maxdepth 1 -name "*.xcframework" -exec git add {} \;
-          git diff --staged --quiet || git commit -m "build: update libGPMetaModule.a + FBSDK frameworks (+load approach) [skip ci]"
+          git diff --staged --quiet || git commit -m "build: update libGPMetaModule.a (ObjC++ .mm approach) [skip ci]"
           git push || echo "Nothing to push"

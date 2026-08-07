@@ -3,10 +3,13 @@
 //  uni-app iOS Plugin SDK Header
 //
 //  Original DCloud macro: static SEL = @selector() stored directly
-//  in __DATA,__DCUniMethod section at compile time.
+//  in __DATA,__DCUniMethod section.
 //
-//  Requires Xcode 15.x (Clang 17) — Xcode 16+ rejects @selector()
-//  as a static initializer.
+//  IMPORTANT: Use .mm (Objective-C++) extension for source files that use
+//  UNI_EXPORT_METHOD. C++ allows non-constant static initialization,
+//  so `static SEL = @selector()` compiles on ALL Xcode versions.
+//  Using .m (Objective-C) fails on Xcode 15+ with:
+//    "initializer element is not a compile-time constant"
 //
 //  Download official SDK: https://nativesupport.dcloud.net.cn/AppDocs/download/ios.html
 //
