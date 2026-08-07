@@ -1,9 +1,9 @@
 #import "GPMetaModule.h"
+#import <SafariServices/SafariServices.h>
+#import <AuthenticationServices/AuthenticationServices.h>
 #import <FBSDKCoreKit/FBSDKCoreKit.h>
 #import <FBSDKCoreKit/FBSDKCoreKit-Swift.h>
 #import <FBSDKCoreKit/FBSDKAppLinkUtility.h>
-#import <SafariServices/SafariServices.h>
-#import <AuthenticationServices/AuthenticationServices.h>
 #import <AppTrackingTransparency/AppTrackingTransparency.h>
 #import <AdSupport/AdSupport.h>
 
