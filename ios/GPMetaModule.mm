@@ -76,7 +76,7 @@ didFinishLaunchingWithOptions:nil
 - (void)fetchDeferredLink:(UniModuleKeepAliveCallback)callback
 {
     [[FBSDKApplicationDelegate sharedInstance] application:nil didFinishLaunchingWithOptions:nil];
-    [[FBSDKAppEvents shared] activateApp();
+    [[FBSDKAppEvents shared] activateApp];
 
     [FBSDKAppLinkUtility fetchDeferredAppLink:^(NSURL *url, NSError *error){
         if(error) {
