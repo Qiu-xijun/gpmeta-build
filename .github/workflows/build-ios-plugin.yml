@@ -26,7 +26,7 @@ jobs:
       - name: Verify Xcode version
         run: xcodebuild -version && clang --version
 
-      - name: Verify source file extension
+      - name: Verify source files
         run: |
           echo "=== Source files in ios/ ==="
           ls -la ios/*.m ios/*.mm 2>/dev/null
@@ -37,9 +37,13 @@ jobs:
             echo "✗ ERROR: GPMetaModule.mm not found!"
             exit 1
           fi
-          if [ -f "ios/GPMetaModule.m" ]; then
-            echo "✗ WARNING: GPMetaModule.m still exists! This will cause compile errors on Xcode 15+"
-            echo "  Please delete it and use .mm instead."
+          echo ""
+          echo "=== GPAppDelegate.m link reference check ==="
+          if grep -q "GPMetaModule" ios/GPAppDelegate.m; then
+            echo "✓ GPAppDelegate references GPMetaModule (link-time force-load)"
+          else
+            echo "✗ WARNING: GPAppDelegate does NOT reference GPMetaModule!"
+            echo "  This is needed to force the linker to include GPMetaModule.o"
             exit 1
           fi
 
@@ -73,7 +77,7 @@ jobs:
             exit $EXIT_CODE
           fi
 
-      - name: Copy .a to ios/
+      - name: Copy .a and verify
         run: |
           DEVICE_A=$(find build/device -name "libGPMetaModule.a" | head -1)
           echo "Device lib: ${DEVICE_A:-NOT_FOUND}"
@@ -87,17 +91,31 @@ jobs:
           lipo -info ios/libGPMetaModule.a
           file ios/libGPMetaModule.a
           ls -lh ios/libGPMetaModule.a
-          echo "=== Exported ObjC class symbols ==="
+          echo ""
+          echo "=== GPMetaModule class symbols ==="
           nm ios/libGPMetaModule.a | grep -i "GPMetaModule" | head -20
-          echo "=== __DCUniMethod section ==="
+          echo ""
+          echo "=== __DCUniMethod section (raw dump) ==="
           otool -s __DATA __DCUniMethod ios/libGPMetaModule.a || echo "otool not available"
+          echo ""
+          echo "=== SEL values in __DCUniMethod ==="
+          otool -X -s __DATA __DCUniMethod ios/libGPMetaModule.a 2>/dev/null | xxd | head -10 || echo "Could not dump"
+          echo ""
           echo "=== UNI_EXPORT_METHOD symbols (_uni_sel_) ==="
           nm ios/libGPMetaModule.a | grep "_uni_sel_" | head -20
+          echo ""
+          echo "=== GPAppDelegate __objc_classrefs (should reference GPMetaModule) ==="
+          nm -m ios/libGPMetaModule.a | grep -i "classref\|GPMetaModule" | head -20
+          echo ""
           echo "=== Method selectors in binary ==="
           strings ios/libGPMetaModule.a | grep -E "initMeta|testPlugin|fetchDeferredLink|requestTracking" | head -10
-          echo "=== ObjC++ (.mm) compiled? ==="
-          nm ios/libGPMetaModule.a | grep -c "GPMetaModule" || echo "0 symbols"
-          echo "=== NOTE: SEL values should be NON-NULL (compile-time fixup via ObjC++) ==="
+          echo ""
+          echo "=== Object files in archive ==="
+          ar t ios/libGPMetaModule.a 2>/dev/null || true
+          echo ""
+          echo "=== NOTE: SEL values are ZERO in .a (ObjC++ dynamic init) ==="
+          echo "=== They are filled at runtime by C++ static init (before main) ==="
+          echo "=== +load fills them even earlier (step 3, before C++ static init) ==="
 
       - name: Copy FBSDK frameworks to ios/
         run: |
@@ -162,5 +180,5 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -f ios/libGPMetaModule.a
           find ios -maxdepth 1 -name "*.xcframework" -exec git add {} \;
-          git diff --staged --quiet || git commit -m "build: update libGPMetaModule.a (ObjC++ .mm approach) [skip ci]"
+          git diff --staged --quiet || git commit -m "build: update libGPMetaModule.a (link-ref fix + ObjC++ .mm + load) [skip ci]"
           git push || echo "Nothing to push"

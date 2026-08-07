@@ -1,5 +1,6 @@
 #import <Foundation/Foundation.h>
 #import <FBSDKCoreKit/FBSDKCoreKit.h>
+#import "GPMetaModule.h"
 
 
 @interface GPAppDelegate : NSObject
@@ -11,6 +12,11 @@
 
 
 + (void)load {
+    // Force the linker to include GPMetaModule.o from the static archive.
+    // Without this, the linker may drop GPMetaModule.o (selective loading),
+    // causing __DATA,__DCUniMethod to be absent from the final binary.
+    [GPMetaModule class];
+
     [[FBSDKApplicationDelegate sharedInstance]
      application:nil
      didFinishLaunchingWithOptions:nil];
