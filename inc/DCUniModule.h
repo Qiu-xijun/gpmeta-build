@@ -42,11 +42,11 @@ typedef void (^UniModuleKeepAliveCallback)(id result, BOOL keepAlive);
 #define UNI_EXPORT_METHOD(method) \
     __attribute__((used)) \
     __attribute__((section("__DATA,__DCUniMethod"))) \
-    static SEL UNI_CAT(_uni_sel_, __COUNTER__) = method
+    static SEL UNI_CAT(_uni_sel_, __COUNTER__) = method;
 
 #define UNI_EXPORT_METHOD_SYNC(method) \
     __attribute__((used)) \
     __attribute__((section("__DATA,__DCUniMethodSync"))) \
-    static SEL UNI_CAT(_uni_sel_sync_, __COUNTER__) = method
+    static SEL UNI_CAT(_uni_sel_sync_, __COUNTER__) = method;
 
 NS_ASSUME_NONNULL_END
